@@ -6,6 +6,7 @@ class GameType(str, Enum):
 
     FIVE_CARD_DRAW = "5-card-draw"
     TEXAS_HOLDEM = "texas-holdem"
+    TEXAS_HOLDEM_NO_LIMIT = "texas-holdem-no-limit"
     SEVEN_CARD_STUD = "7-card-stud"
 
 
@@ -53,3 +54,9 @@ class StrategyStyle(str, Enum):
     AGGRESSIVE = "Aggressive Bluffer"
     CAUTIOUS = "Calculated and Cautious"
     CHAOTIC = "Chaotic and Unpredictable"
+
+
+class BettingLimit(str, Enum):
+    """Valid betting limits."""
+
+    NO_LIMIT = "no-limit"

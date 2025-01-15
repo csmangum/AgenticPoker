@@ -156,3 +156,14 @@ class Player:
     def position(self, value: PlayerPosition):
         """Set the player's position at the table."""
         self._position = value
+
+    def handle_all_in(self) -> None:
+        """
+        Handle the player's all-in status.
+
+        Side Effects:
+            - Sets player's is_all_in status to True
+            - Logs the all-in action
+        """
+        self.is_all_in = True
+        logging.debug(f"{self.name} is all-in with ${self.chips} chips")

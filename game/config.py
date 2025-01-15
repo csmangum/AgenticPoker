@@ -17,8 +17,6 @@ class GameConfig:
         ante (int): Mandatory bet required from all players before dealing (default: 0)
         max_rounds (Optional[int]): Maximum number of rounds to play, None for unlimited (default: None)
         session_id (Optional[str]): Unique identifier for the game session (default: None)
-        max_raise_multiplier (int): Maximum raise as multiplier of current bet (default: 3)
-        max_raises_per_round (int): Maximum number of raises allowed per betting round (default: 4)
         min_bet (Optional[int]): Minimum bet amount, defaults to big blind if not specified
 
     Raises:
@@ -31,8 +29,6 @@ class GameConfig:
     ante: int = 0
     max_rounds: Optional[int] = None
     session_id: Optional[str] = None
-    max_raise_multiplier: int = 3
-    max_raises_per_round: int = 4
     min_bet: Optional[int] = None
 
     def __post_init__(self):
@@ -43,10 +39,6 @@ class GameConfig:
             raise ValueError("Blinds must be positive")
         if self.ante < 0:
             raise ValueError("Ante cannot be negative")
-        if self.max_raise_multiplier <= 0:
-            raise ValueError("Max raise multiplier must be positive")
-        if self.max_raises_per_round <= 0:
-            raise ValueError("Max raises per round must be positive")
         # Set min_bet to big blind if not specified
         if self.min_bet is None:
             self.min_bet = self.big_blind

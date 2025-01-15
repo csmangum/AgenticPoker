@@ -48,7 +48,6 @@ def betting_round(
     highest_bet: int = current_bet
 
     # Main betting loop
-    #! make this a separate function
     while not round_complete:
 
         for agent in active_players:
@@ -63,7 +62,6 @@ def betting_round(
             action_decision = agent.decide_action(game)
 
             # Process the action
-            #! this is a large function. Is it needed???
             pot, new_current_bet, new_last_raiser = _process_player_action(
                 agent,
                 action_decision,
@@ -79,7 +77,6 @@ def betting_round(
                 highest_bet = new_current_bet
 
             # Update last raiser
-            #! make a helper function for this
             if new_last_raiser:
                 last_raiser = new_last_raiser
                 # Reset acted_since_last_raise set
@@ -96,7 +93,6 @@ def betting_round(
                 needs_to_act.discard(agent)
 
             # Check if betting round should continue
-            #! make a helper function for this
             active_non_folded = set(
                 p for p in active_players if not p.folded and p.chips > 0
             )
@@ -125,7 +121,6 @@ def betting_round(
 
     # If any all-ins occurred, compute side pots
     if all_in_players:
-        #! shouldnt pot manager handle this?
         side_pots = calculate_side_pots(active_players, all_in_players)
         return pot, side_pots
 
@@ -170,7 +165,7 @@ def handle_betting_round(
         game.pot_manager.side_pots = [
             {
                 "amount": pot.amount,
-                "eligible_players": pot.eligible_players,  # Already strings, no need to convert
+                "eligible_players": pot.eligible_players,
             }
             for pot in side_pots
         ]
@@ -198,7 +193,7 @@ def validate_bet_to_call(
     """
     bet_to_call = max(
         0, current_bet - player_bet
-    )  # Works for both blinds and everyone else
+    )
     return bet_to_call
 
 
@@ -239,18 +234,11 @@ def _process_player_action(
     """
     new_last_raiser = None
 
-    # Get max raise settings from game state
-    max_raise_multiplier = game.config.max_raise_multiplier  #! why not used
-    max_raises_per_round = game.config.max_raises_per_round  #! why not used
-    raise_count = game.round_state.raise_count if game.round_state else 0
-
     # Calculate how much player needs to call, accounting for big blind position
     is_big_blind = player.is_big_blind if hasattr(player, "is_big_blind") else False
     to_call = validate_bet_to_call(current_bet, player.bet, is_big_blind)
 
     # Log initial state with active player context
-    #! move to betting logger
-    #! or add to start of player turn since it has hand info
     logging.info(
         f"  Active players: {[p.name for p in active_players if not p.folded]}"
     )
@@ -276,7 +264,7 @@ def _process_player_action(
         bet_amount = min(to_call, player.chips)
         actual_bet = player.place_bet(
             bet_amount
-        )  #! should the player do this and not betting?
+        )
 
         # Add the bet to the pot
         game.pot_manager.pot += actual_bet
@@ -290,19 +278,8 @@ def _process_player_action(
         logging.info(f"  Pot after call: ${game.pot_manager.pot}")
 
     elif action_decision.action_type == ActionType.RAISE:
-        # Get current raise count and minimum bet
-        raise_count = game.round_state.raise_count if game.round_state else 0
-        min_bet = game.config.min_bet
-
-        # Check if we've hit max raises
-        if raise_count >= game.config.max_raises_per_round:
-            logging.info(
-                f"Max raises ({game.config.max_raises_per_round}) reached, converting raise to call"
-            )
-            return _process_call(player, current_bet, game.pot_manager.pot)
-
         # Calculate minimum raise amount (current bet + minimum raise increment)
-        min_raise = current_bet + min_bet
+        min_raise = current_bet + game.config.min_bet
 
         # Process valid raise
         if action_decision.raise_amount >= min_raise:
@@ -315,8 +292,6 @@ def _process_player_action(
             if action_decision.raise_amount > current_bet:
                 current_bet = action_decision.raise_amount
                 new_last_raiser = player
-                if game.round_state is not None:
-                    game.round_state.raise_count += 1
 
             status = " (all in)" if player.chips == 0 else ""
             logging.info(
@@ -350,8 +325,6 @@ def _process_player_action(
         game.round_state.current_bet = current_bet
         if new_last_raiser:
             game.round_state.last_raiser = new_last_raiser.name
-            # Remove this line to prevent double-counting raises
-            # game_state.round_state.raise_count += 1
 
     return game.pot_manager.pot, current_bet, new_last_raiser
 

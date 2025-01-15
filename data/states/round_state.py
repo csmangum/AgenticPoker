@@ -53,3 +53,27 @@ class RoundState(BaseModel):
             round_number=round_number,
             raise_count=0,
         )
+
+    def update_phase(self, new_phase: RoundPhase) -> None:
+        """Update the phase of the round."""
+        self.phase = new_phase
+
+    def track_action(self, player_name: str, action: str) -> None:
+        """Track player actions during the round."""
+        if action in ["raise", "bet"]:
+            self.last_raiser = player_name
+            self.raise_count += 1
+        if action in ["raise", "bet", "call"]:
+            self.last_aggressor = player_name
+        self.acted_this_phase.append(player_name)
+        if player_name in self.needs_to_act:
+            self.needs_to_act.remove(player_name)
+
+    def reset_for_new_phase(self) -> None:
+        """Reset tracking fields for a new phase of the round."""
+        self.needs_to_act = []
+        self.acted_this_phase = []
+        self.last_raiser = None
+        self.last_aggressor = None
+        self.is_complete = False
+        self.winner = None

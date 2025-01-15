@@ -25,7 +25,6 @@ class GameConfig:
 
     # Betting limits
     MIN_RAISE: int = 20
-    MAX_RAISE_MULTIPLIER: int = 4  # max raise = current_bet * multiplier
 
     class Config:
         env_file = ".env"
