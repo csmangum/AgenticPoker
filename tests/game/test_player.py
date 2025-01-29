@@ -18,16 +18,16 @@ class TestPlayer:
         mock.current_bet = 0
         mock.pot = Mock()
         mock.pot.pot = 0
-        
+
         # Configure config with proper values instead of Mock objects
         mock.config = Mock()
         mock.config.max_raises_per_round = 4
         mock.config.min_bet = 100
-        
+
         # Configure round_state with proper values
         mock.round_state = Mock()
         mock.round_state.raise_count = 0
-        
+
         return mock
 
     def test_player_initialization(self, player):
@@ -210,13 +210,25 @@ class TestPlayer:
         mock_game.current_bet = 500
         mock_game.round_state.raise_count = 0
         mock_game.config.max_raises_per_round = 4
-        
-        # Player tries to call 500 but only has 300
+
+        # Player tries to call 500 but only has 300, should fold
+        player._call(500, mock_game)
+
+        assert player.folded is True
+        assert player.chips == 300  # Should keep their chips when folding
+        assert player.bet == 0  # No bet placed when folding
+
+    def test_exact_call_all_in(self, player, mock_game):
+        """Test that a player going all-in with an exact call amount is handled correctly."""
+        player.chips = 500
+        mock_game.current_bet = 500
+
         player._call(500, mock_game)
 
         assert player.is_all_in
         assert player.chips == 0
-        assert player.bet == 300
+        assert player.bet == 500
+        assert player.called is True
 
     def test_partial_raise_forces_all_in(self, player, mock_game):
         """Test that a player who can't make minimum raise goes all-in."""
