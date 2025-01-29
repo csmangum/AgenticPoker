@@ -488,3 +488,53 @@ def test_handle_draw_phase_none_decision(setup_mock_hands, caplog):
     # Verify hand remains unchanged
     assert setup_mock_hands.players[0].hand.cards == original_hand
     assert "keeping current hand" in caplog.text
+
+
+def test_handle_draw_phase_duplicate_and_unordered_indices(setup_mock_hands, caplog):
+    """Test draw phase with duplicate and unordered discard indices.
+
+    Tests that:
+    1. Unordered indices work correctly
+    2. Duplicate indices are treated as separate discards
+
+    Assumptions:
+    - Player attempts to discard indices [3, 1, 3, 1]
+    - Each index is treated as a separate discard
+    - Unordered indices should still work
+    """
+    caplog.set_level(logging.INFO)
+
+    # Configure deck with known cards
+    new_cards = [Card(rank=str(r), suit="♠") for r in range(2, 7)]  # 5 cards
+    setup_mock_hands.deck.cards = new_cards.copy()
+
+    # Mock the deck's deal method to return specific cards
+    def mock_deal(count):
+        return [Card(rank=str(r), suit="♠") for r in range(2, 2 + count)]
+
+    setup_mock_hands.deck.deal = MagicMock(side_effect=mock_deal)
+
+    # Configure player to try discarding with duplicate indices
+    setup_mock_hands.players[0].decide_discard = MagicMock(
+        return_value=MagicMock(discard=[3, 1, 3, 1])
+    )
+
+    # Remember original hand
+    original_hand = setup_mock_hands.players[0].hand.cards.copy()
+
+    handle_draw_phase(setup_mock_hands)
+
+    # Verify hand size remains correct
+    assert len(setup_mock_hands.players[0].hand.cards) == 5
+
+    # Verify original cards at position 0 remain unchanged
+    # (since we're not discarding at position 0)
+    assert setup_mock_hands.players[0].hand.cards[0] == original_hand[0]
+
+    # Verify new spades cards were drawn for all discarded positions
+    # Due to the order of discards [3,1,3,1], all positions except 0 will be replaced
+    assert all(
+        card.suit == "♠"
+        for i, card in enumerate(setup_mock_hands.players[0].hand.cards)
+        if i > 0
+    )

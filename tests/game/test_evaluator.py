@@ -821,3 +821,41 @@ def test_four_of_a_kind_same_rank_kicker():
     with pytest.raises(ValueError) as exc_info:
         evaluate_hand(hand)
     assert "Duplicate card found" in str(exc_info.value)
+
+
+def test_wheel_straight_flush_vs_regular_straight_flush():
+    """Test that wheel straight flush loses to higher straight flush"""
+    wheel_sf = [
+        Card("5", "♠"),
+        Card("4", "♠"),
+        Card("3", "♠"),
+        Card("2", "♠"),
+        Card("A", "♠"),
+    ]
+
+    higher_sf = [
+        Card("6", "♥"),
+        Card("5", "♥"),
+        Card("4", "♥"),
+        Card("3", "♥"),
+        Card("2", "♥"),
+    ]
+
+    _, tiebreakers1, _ = evaluate_hand(wheel_sf)
+    _, tiebreakers2, _ = evaluate_hand(higher_sf)
+
+    assert tiebreakers2 > tiebreakers1  # 6-high should beat 5-high wheel
+
+
+def test_invalid_card_rank():
+    """Test that invalid card ranks are caught"""
+    hand = [
+        Card("Z", "♠"),  # Invalid rank
+        Card("K", "♠"),
+        Card("Q", "♠"),
+        Card("J", "♠"),
+        Card("10", "♠"),
+    ]
+
+    with pytest.raises(KeyError):
+        evaluate_hand(hand)
