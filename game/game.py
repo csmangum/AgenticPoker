@@ -154,7 +154,7 @@ class AgenticPoker:
             5. Reset for next round
         """
         eliminated_players = []
-        
+
         if max_rounds:
             self.max_rounds = max_rounds
 
@@ -367,10 +367,13 @@ class AgenticPoker:
 
     def _handle_player_eliminations(self, eliminated_players: List[Player]) -> bool:
         # Track newly eliminated players
-        for player in self.table:
-            if player.chips <= 0 and player not in eliminated_players:
+        for player in list(
+            self.table.players
+        ):  # Note: copy to avoid changing while iterating
+            if player.chips <= 0:
                 eliminated_players.append(player)
                 GameLogger.log_player_elimination(player.name)
+                self.table.players.remove(player)
 
         # Check game end conditions
         if len(self.table) == 1:
@@ -385,7 +388,9 @@ class AgenticPoker:
     def _log_game_summary(self, eliminated_players: List[Player]) -> None:
         """Log a summary of the game results."""
         # Get all players (both active and eliminated)
-        all_players = list({player for player in (self.table.players + eliminated_players)})
+        all_players = list(
+            {player for player in (self.table.players + eliminated_players)}
+        )
 
         # Sort players by final chip count
         all_players.sort(key=lambda p: p.chips, reverse=True)
@@ -398,10 +403,10 @@ class AgenticPoker:
                 {
                     "name": player.name,
                     "chips": player.chips,
-                    "eliminated": player in eliminated_players
+                    "eliminated": player in eliminated_players,
                 }
                 for player in all_players
-            ]
+            ],
         )
 
     def _initialize_round(self) -> None:

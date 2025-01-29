@@ -137,7 +137,13 @@ class Player:
     def _call(self, amount: int, game) -> None:
         """
         Mark the player as called for the current hand.
+        If player cannot meet the call amount, they are forced to fold.
         """
+        # Force fold if player cannot meet the call amount
+        if amount > self.chips:
+            self._fold()
+            return
+
         self.place_bet(amount, game)
         self.called = True
 

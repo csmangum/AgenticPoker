@@ -53,6 +53,7 @@ class Table:
                                   The order determines the seating arrangement and turn order.
         """
         self.players = players
+        self.initial_players = players
         self.index = 0
         self.needs_to_act = set(players)  # Track players who still need to act
         self.last_raiser = None
