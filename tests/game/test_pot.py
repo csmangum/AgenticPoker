@@ -45,6 +45,7 @@ def setup_mocks(monkeypatch):
     monkeypatch.setattr(PotLogger, "log_pot_reset", Mock())
     monkeypatch.setattr(PotLogger, "log_new_side_pot", Mock())
     monkeypatch.setattr(PotLogger, "log_side_pots_info", Mock())
+    monkeypatch.setattr(PotLogger, "log_pot_update", Mock())
 
 
 def get_game_state_str(pot, players):
@@ -1732,7 +1733,7 @@ class TestPot:
         """Test pot accounting through a complete betting round.
 
         Verifies that:
-        1. Initial pot starts at antes/blinds total 
+        1. Initial pot starts at antes/blinds total
         2. Bets are added to pot when placed (not at end of round)
         3. Bets are cleared at end of round
         4. Final pot total is correct
@@ -1740,7 +1741,7 @@ class TestPot:
         Scenario:
         - Initial pot: $410 (antes + blinds + all bets)
         - Charlie has bet $110 (already in pot)
-        - Randy has bet $110 (already in pot) 
+        - Randy has bet $110 (already in pot)
         - End betting round clears bets
         - Final pot should be $410
         """
@@ -1757,7 +1758,7 @@ class TestPot:
         mock_players[0].folded = False
 
         # Setup Randy (Caller)
-        mock_players[1].name = "Randy" 
+        mock_players[1].name = "Randy"
         mock_players[1].bet = 110  # Matches BB + ante
         mock_players[1].chips = 890
         mock_players[1].folded = False
@@ -1768,7 +1769,7 @@ class TestPot:
         # Verify final pot
         assert pot.pot == 410, (
             f"Final pot should be $410\n"
-            f"Initial pot: $410\n" 
+            f"Initial pot: $410\n"
             f"Actual pot: ${pot.pot}"
         )
 
@@ -1776,5 +1777,42 @@ class TestPot:
         assert all(p.bet == 0 for p in mock_players)
 
         # Verify player chips
-        assert mock_players[0].chips == 890, f"Charlie should have $890, has ${mock_players[0].chips}"
-        assert mock_players[1].chips == 890, f"Randy should have $890, has ${mock_players[1].chips}"
+        assert (
+            mock_players[0].chips == 890
+        ), f"Charlie should have $890, has ${mock_players[0].chips}"
+        assert (
+            mock_players[1].chips == 890
+        ), f"Randy should have $890, has ${mock_players[1].chips}"
+
+    def test_set_pots_comprehensive(self, pot):
+        """Test set_pots with various valid inputs.
+
+        Tests:
+        1. Setting main pot with no side pots
+        2. Setting main pot with valid side pots
+        3. Setting main pot with None side pots
+        4. Verifying logging behavior
+        """
+        # Test setting main pot only
+        pot.set_pots(100)
+        assert pot.pot == 100
+        assert pot.side_pots == None
+
+        # Test setting main pot with side pots
+        side_pots = [
+            SidePot(amount=200, eligible_players=["Alice", "Bob"]),
+            SidePot(amount=300, eligible_players=["Alice"]),
+        ]
+        pot.set_pots(100, side_pots)
+        assert pot.pot == 100
+        assert len(pot.side_pots) == 2
+        assert pot.side_pots[0].amount == 200
+        assert pot.side_pots[1].amount == 300
+
+        # Test setting with None side pots
+        pot.set_pots(200, None)
+        assert pot.pot == 200
+        assert pot.side_pots == None
+
+        # Verify logging was called
+        assert PotLogger.log_pot_update.called

@@ -159,12 +159,12 @@ class AgenticPoker:
             self.max_rounds = max_rounds
 
         while len(self.table) > 1:
-            self.round_number += 1
-
             # Check max rounds before starting new round
-            if self.max_rounds and self.round_number > self.max_rounds:
+            if self.max_rounds and self.round_number >= self.max_rounds:
                 GameLogger.log_game_ended_after_rounds(self.max_rounds)
                 break
+
+            self.round_number += 1
 
             # Handle eliminations and check if game should end
             if not self._handle_player_eliminations(eliminated_players):

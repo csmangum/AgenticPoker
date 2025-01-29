@@ -53,7 +53,17 @@ def game(mock_players):
 
 
 def test_game_initialization(game, mock_players):
-    """Test game initialization with valid parameters."""
+    """Test game initialization with valid parameters.
+
+    Assumptions:
+        - All players start with 1000 chips
+        - Players have valid names and attributes
+        - Session ID is automatically generated if not provided
+
+    Prerequisites:
+        - mock_players fixture is available
+        - game fixture is initialized with standard betting structure
+    """
     assert len(game.table) == 3
     assert game.small_blind == 50
     assert game.big_blind == 100
@@ -65,7 +75,17 @@ def test_game_initialization(game, mock_players):
 
 
 def test_invalid_game_initialization(mock_players):
-    """Test game initialization with invalid parameters."""
+    """Test game initialization with invalid parameters.
+
+    Assumptions:
+        - Game requires at least 2 players
+        - Players cannot have negative chips
+        - Invalid parameters raise ValueError
+
+    Prerequisites:
+        - mock_players fixture is available
+        - Mock class is available from unittest.mock
+    """
     with pytest.raises(ValueError):
         AgenticPoker(
             players=[],  # Empty players list
@@ -88,7 +108,17 @@ def test_invalid_game_initialization(mock_players):
 
 
 def test_dealer_rotation(game, mock_players):
-    """Test dealer button rotation between rounds."""
+    """Test dealer button rotation between rounds.
+
+    Assumptions:
+        - Dealer button moves clockwise by one position
+        - Rotation happens at end of each round
+        - Dealer index wraps around table size
+
+    Prerequisites:
+        - game fixture is initialized
+        - mock_players fixture provides at least 2 players
+    """
     initial_dealer = game.dealer_index
 
     # Reset round which rotates dealer
@@ -100,7 +130,19 @@ def test_dealer_rotation(game, mock_players):
 
 
 def test_round_initialization(game, mock_players):
-    """Test initialization of a new round."""
+    """Test initialization of a new round.
+
+    Assumptions:
+        - All player bets are reset to 0
+        - All player folded states are reset to False
+        - Each player receives a new hand
+        - Pot is reset to 0
+
+    Prerequisites:
+        - game fixture is initialized
+        - mock_players fixture is available
+        - Players have hand attribute
+    """
     game._initialize_round()
 
     # Verify round state
@@ -111,7 +153,19 @@ def test_round_initialization(game, mock_players):
 
 
 def test_collect_blinds_and_antes(game, player_factory):
-    """Test that blinds and antes are collected correctly and pot is updated properly."""
+    """Test that blinds and antes are collected correctly and pot is updated properly.
+
+    Assumptions:
+        - Players have sufficient chips for blinds and antes
+        - Dealer position determines blind positions
+        - Antes are collected before blinds
+        - All collected chips go to pot
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - Players can track chips and bets
+    """
     # Create players with known chip stacks
     players = [
         player_factory(name="Alice", chips=1000),
@@ -164,10 +218,17 @@ def test_collect_blinds_and_antes(game, player_factory):
 def test_pot_not_double_counted(game, player_factory):
     """Test that pot amounts are correctly tracked during betting.
 
-    This test verifies that:
-    1. Bets are added to pot when placed
-    2. Pot increases incrementally with each bet
-    3. Final pot matches actual player contributions
+    Assumptions:
+        - Bets are added to pot incrementally
+        - Player chip counts decrease as they bet
+        - Pot total matches sum of all player contributions
+        - End of betting round doesn't modify pot total
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - Players can place bets and fold
+        - Pot can track total and add bets
     """
     # Create players with known chip stacks
     players = [
@@ -205,7 +266,9 @@ def test_pot_not_double_counted(game, player_factory):
     alice.bet += 300
     game.pot.add_to_pot(300)
     expected_pot = expected_initial_pot + 300
-    assert game.pot.pot == expected_pot, f"Pot should be ${expected_pot} after Alice's bet"
+    assert (
+        game.pot.pot == expected_pot
+    ), f"Pot should be ${expected_pot} after Alice's bet"
 
     # Bob folds (already put in SB)
     bob = players[1]
@@ -217,7 +280,9 @@ def test_pot_not_double_counted(game, player_factory):
     charlie.bet += 200
     game.pot.add_to_pot(200)
     expected_pot = expected_pot + 200
-    assert game.pot.pot == expected_pot, f"Pot should be ${expected_pot} after Charlie's bet"
+    assert (
+        game.pot.pot == expected_pot
+    ), f"Pot should be ${expected_pot} after Charlie's bet"
 
     # Randy calls
     randy = players[3]
@@ -225,7 +290,9 @@ def test_pot_not_double_counted(game, player_factory):
     randy.bet += 300
     game.pot.add_to_pot(300)
     expected_pot = expected_pot + 300
-    assert game.pot.pot == expected_pot, f"Pot should be ${expected_pot} after Randy's bet"
+    assert (
+        game.pot.pot == expected_pot
+    ), f"Pot should be ${expected_pot} after Randy's bet"
 
     # End betting round (should only clear bets, not modify pot)
     initial_pot = game.pot.pot
@@ -235,12 +302,25 @@ def test_pot_not_double_counted(game, player_factory):
     # Verify player chip counts
     assert alice.chips == 1000 - 10 - 300, f"Alice's chips incorrect: {alice.chips}"
     assert bob.chips == 1000 - 10 - 50, f"Bob's chips incorrect: {bob.chips}"
-    assert charlie.chips == 1000 - 10 - 100 - 200, f"Charlie's chips incorrect: {charlie.chips}"
+    assert (
+        charlie.chips == 1000 - 10 - 100 - 200
+    ), f"Charlie's chips incorrect: {charlie.chips}"
     assert randy.chips == 1000 - 10 - 300, f"Randy's chips incorrect: {randy.chips}"
 
 
 def test_post_draw_betting_skipped_all_all_in(game, player_factory):
-    """Test that post-draw betting is skipped when all remaining players are all-in."""
+    """Test that post-draw betting is skipped when all remaining players are all-in.
+
+    Assumptions:
+        - Players marked as all-in have chips = 0
+        - Folded players don't affect all-in status check
+        - Betting phase returns True to continue to showdown
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - Players can be created with is_all_in flag
+    """
     # Create players in all-in state
     all_in1 = player_factory(name="AllIn1", chips=0, is_all_in=True, bet=500)
     all_in2 = player_factory(name="AllIn2", chips=0, is_all_in=True, bet=300)
@@ -253,3 +333,168 @@ def test_post_draw_betting_skipped_all_all_in(game, player_factory):
 
     # Verify betting was skipped and returned True to continue to showdown
     assert result is True
+
+
+def test_play_game_max_rounds(game, player_factory):
+    """Test that game stops after max_rounds is reached.
+
+    Assumptions:
+        - Players start with sufficient chips to play multiple rounds
+        - Game state is properly initialized
+        - Phase handlers are mocked to isolate max rounds logic
+        - Game should stop BEFORE exceeding max_rounds
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - MagicMock is imported from unittest.mock
+    """
+    # Create players with different chip stacks
+    players = [
+        player_factory(name="P1", chips=1000),
+        player_factory(name="P2", chips=1000),
+        player_factory(name="P3", chips=1000),
+    ]
+    game.table.players = players
+
+    # Set max rounds to 2
+    max_rounds = 2
+
+    # Mock the phase handlers to avoid full game logic
+    game._handle_pre_draw_phase = MagicMock(return_value=True)
+    game._handle_draw_phase = MagicMock(return_value=True)
+    game._handle_post_draw_phase = MagicMock(return_value=True)
+    game._handle_showdown = MagicMock()
+
+    # Play game
+    game.play_game(max_rounds=max_rounds)
+
+    # Verify game stopped after max rounds
+    assert (
+        game.round_number == max_rounds
+    ), f"Expected {max_rounds} rounds, got {game.round_number}"
+
+    # Verify phase handlers were called expected number of times
+    assert game._handle_pre_draw_phase.call_count == max_rounds
+    assert game._handle_draw_phase.call_count == max_rounds
+    assert game._handle_post_draw_phase.call_count == max_rounds
+    assert game._handle_showdown.call_count == max_rounds
+
+
+def test_play_game_elimination(game, player_factory):
+    """Test that game ends when players are eliminated.
+
+    Assumptions:
+        - Game ends immediately when only one player has chips > 0
+        - Eliminated players (chips = 0) are removed from table
+        - Phase handlers should not be called if game ends before first round
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - MagicMock is imported from unittest.mock
+    """
+    # Create players with different chip stacks
+    players = [
+        player_factory(name="Winner", chips=1000),
+        player_factory(name="Loser1", chips=0),
+        player_factory(name="Loser2", chips=0),
+    ]
+    game.table.players = players
+
+    # Mock the phase handlers
+    game._handle_pre_draw_phase = MagicMock(return_value=True)
+    game._handle_draw_phase = MagicMock(return_value=True)
+    game._handle_post_draw_phase = MagicMock(return_value=True)
+    game._handle_showdown = MagicMock()
+
+    # Play game
+    game.play_game()
+
+    # Verify game ended after eliminations
+    assert len(game.table.players) == 1
+    assert game.table.players[0].name == "Winner"
+
+    # Verify phase handlers were not called (game should end before first round)
+    assert game._handle_pre_draw_phase.call_count == 0
+    assert game._handle_draw_phase.call_count == 0
+    assert game._handle_post_draw_phase.call_count == 0
+    assert game._handle_showdown.call_count == 0
+
+
+def test_handle_showdown(game, player_factory):
+    """Test showdown handling and pot distribution.
+
+    Assumptions:
+        - Pot contains only main pot (no side pots)
+        - All bets have been collected into pot before showdown
+        - Player hands are properly mocked with P1 winning
+        - Initial chips are tracked for each player
+
+    Prerequisites:
+        - game fixture is initialized
+        - player_factory fixture is available
+        - MagicMock is imported from unittest.mock
+        - Pot is properly initialized
+    """
+    # Create players with mock hands
+    p1 = player_factory(name="P1", chips=900)  # Lost 100 in betting
+    p2 = player_factory(name="P2", chips=900)  # Lost 100 in betting
+
+    # Create spies first
+    compare_spy = MagicMock()
+    show_spy = MagicMock()
+
+    # Create base mock hand with compare_to method
+    class MockHand:
+        def __init__(self, name):
+            self.name = name
+
+        def compare_to(self, other):
+            # Call spy first
+            compare_spy(self.name, other.name)
+            # P1's hand beats P2's hand
+            if self.name == "P1" and other.name == "P2":
+                return 1
+            # P2's hand loses to P1's hand
+            if self.name == "P2" and other.name == "P1":
+                return -1
+            # Equal to self
+            return 0
+
+        def show(self):
+            # Call spy
+            show_spy(self.name)
+            return f"{self.name}'s hand"
+
+    # Set up mock hands where P1 wins
+    p1.hand = MockHand("P1")
+    p2.hand = MockHand("P2")
+
+    game.table.players = [p1, p2]
+    game.initial_chips = {p1: 1000, p2: 1000}
+
+    # Set up pot with 200 (100 from each player)
+    game.pot.pot = 200
+
+    # Run showdown
+    game._handle_showdown()
+
+    # Verify winner got the pot
+    assert p1.chips == 1100  # Original 900 + 200 pot
+    assert p2.chips == 900  # No change
+
+    # Debug: Print all calls to compare_spy
+    print("\nAll compare_spy calls:")
+    for call in compare_spy.mock_calls:
+        print(f"  {call}")
+
+    # Verify hand comparison was called
+    compare_spy.assert_called()
+    show_spy.assert_called()
+
+    # Verify at least one comparison happened between P1 and P2
+    assert any(
+        call[1] == ("P1", "P2") or call[1] == ("P2", "P1") 
+        for call in compare_spy.mock_calls
+    ), "No comparison between P1 and P2 found"

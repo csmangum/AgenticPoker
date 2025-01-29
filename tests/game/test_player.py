@@ -2,6 +2,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from data.states.player_state import PlayerState
+from data.types.action_decision import ActionDecision, ActionType
+from data.types.player_types import PlayerPosition
 from game.hand import Hand
 from game.player import Player
 
@@ -244,3 +247,72 @@ class TestPlayer:
         assert player.is_all_in
         assert player.chips == 0
         assert player.bet == 350  # All-in call amount
+
+    def test_execute_raise_action(self, player, mock_game):
+        """Test executing a raise action"""
+        action = ActionDecision(action_type=ActionType.RAISE, raise_amount=500)
+        player.execute(action, mock_game)
+        assert player.bet == 500
+        assert player.chips == 500
+
+    def test_execute_call_action(self, player, mock_game):
+        """Test executing a call action"""
+        mock_game.current_bet = 300
+        action = ActionDecision(action_type=ActionType.CALL)
+        player.execute(action, mock_game)
+        assert player.bet == 300
+        assert player.called is True
+
+    def test_execute_check_action(self, player, mock_game):
+        """Test executing a check action"""
+        action = ActionDecision(action_type=ActionType.CHECK)
+        player.execute(action, mock_game)
+        assert player.checked is True
+
+    def test_execute_fold_action(self, player, mock_game):
+        """Test executing a fold action"""
+        action = ActionDecision(action_type=ActionType.FOLD)
+        player.execute(action, mock_game)
+        assert player.folded is True
+
+    def test_position_property(self, player):
+        """Test getting and setting player position"""
+        player.position = PlayerPosition.DEALER
+        assert player.position == PlayerPosition.DEALER
+
+        player.position = PlayerPosition.SMALL_BLIND
+        assert player.position == PlayerPosition.SMALL_BLIND
+
+    def test_get_state(self, player):
+        """Test getting player state"""
+        state = player.get_state()
+        assert isinstance(state, PlayerState)
+        assert state.name == player.name
+        assert state.chips == player.chips
+        assert state.bet == player.bet
+        assert state.folded == player.folded
+
+    def test_player_equality(self):
+        """Test player equality comparison"""
+        player1 = Player("TestPlayer", 1000)
+        player2 = Player("TestPlayer", 2000)  # Same name, different chips
+        player3 = Player("OtherPlayer", 1000)
+
+        assert player1 == player2  # Same name should be equal
+        assert player1 != player3  # Different name should not be equal
+        assert player1 != "TestPlayer"  # Different type should not be equal
+
+    def test_player_hash(self):
+        """Test player hash functionality"""
+        player1 = Player("TestPlayer", 1000)
+        player2 = Player("TestPlayer", 2000)
+        player3 = Player("OtherPlayer", 1000)
+
+        # Same name should hash to same value
+        assert hash(player1) == hash(player2)
+        # Different names should hash to different values
+        assert hash(player1) != hash(player3)
+
+        # Test using players in a set
+        player_set = {player1, player2, player3}
+        assert len(player_set) == 2  # player1 and player2 count as same

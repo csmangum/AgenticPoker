@@ -323,3 +323,61 @@ def test_table_iteration_methods(mock_players):
     # Test __contains__
     assert mock_players[0] in table
     assert Player("NonExistent", 1000) not in table
+
+
+def test_initial_players_preserved(mock_players):
+    """Test that initial_players list is preserved even when players fold/go all-in.
+
+    Verifies:
+    - initial_players matches input players
+    - initial_players remains unchanged when player states change
+    """
+    table = Table(mock_players)
+    assert table.initial_players == mock_players
+
+    # Change player states
+    mock_players[0].folded = True
+    mock_players[1].is_all_in = True
+
+    # Verify initial_players is unchanged
+    assert table.initial_players == mock_players
+
+
+def test_betting_edge_cases(mock_players):
+    """Test edge cases around betting amounts and player chips.
+
+    Verifies:
+    - Players with insufficient chips must go all-in
+    - Betting tracks correctly when players have different chip amounts
+    """
+    table = Table(mock_players)
+
+    # Set up players with different chip amounts
+    mock_players[0].chips = 50
+    mock_players[1].chips = 100
+    mock_players[2].chips = 200
+
+    # Player with most chips raises
+    raise_action = ActionDecision(action_type=ActionType.RAISE, raise_amount=150)
+    table.mark_player_acted(mock_players[2], raise_action)
+    mock_players[2].bet = 150
+
+    # Player with insufficient chips should still be active until they act
+    assert mock_players[0] not in table.inactive_players()
+
+    # When player with insufficient chips calls, they go all-in
+    call_action = ActionDecision(action_type=ActionType.CALL)
+    table.mark_player_acted(mock_players[0], call_action)
+    mock_players[0].bet = 50  # Can only bet what they have
+    mock_players[0].is_all_in = True
+
+    # Now they should be in all-in players list
+    assert mock_players[0] in table.all_in_players()
+
+    # Middle player calls and goes all-in
+    table.mark_player_acted(mock_players[1], call_action)
+    mock_players[1].bet = 100  # Can only bet what they have
+    mock_players[1].is_all_in = True
+
+    assert mock_players[1] in table.all_in_players()
+    assert table.current_bet == 150  # Highest bet remains unchanged
