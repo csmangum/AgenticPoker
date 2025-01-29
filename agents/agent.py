@@ -19,6 +19,7 @@ from game.evaluator import HandEvaluation
 from game.player import Player
 from game.utils import get_min_bet, validate_bet_amount
 from loggers.agent_logger import AgentLogger
+from agents.player_thought_logger import PlayerThoughtLogger
 
 load_dotenv()
 API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -82,6 +83,9 @@ class Agent(Player):
         # Initialize memory store with session-specific collection name
         collection_name = f"agent_{name.lower().replace(' ', '_')}_{session_id}_memory"
         self.memory_store = ChromaMemoryStore(collection_name)
+
+        # Initialize thought logger
+        self.thought_logger = PlayerThoughtLogger(name, session_id)
 
         # Keep short-term memory in lists for immediate context
         self.short_term_limit = 3
@@ -233,7 +237,7 @@ class Agent(Player):
         except Exception:
             pass  # Suppress errors during interpreter shutdown
 
-    def decide_action(self, game: "Game") -> ActionDecision:
+    async def decide_action(self, game: "Game") -> ActionDecision:
         """Determine the next poker action based on the current game state."""
         # Get hand evaluation before making decision
         hand_eval: HandEvaluation = self.hand.evaluate() if self.hand else None
@@ -242,14 +246,16 @@ class Agent(Player):
         if self.use_planning:
             self.strategy_planner.plan_strategy(self, game, hand_eval)
 
-        decided_action = self._decide_action(game, hand_eval)
+        async with self.thought_logger.decision_context() as logger:
+            decided_action = await self._decide_action(game, hand_eval, logger)
 
         return decided_action
 
-    def _decide_action(
+    async def _decide_action(
         self,
         game: "Game",
         hand_eval: Optional[HandEvaluation] = None,
+        logger: PlayerThoughtLogger = None,
     ) -> ActionDecision:
         """Execute an action based on current plan and game state."""
         try:
@@ -264,6 +270,12 @@ class Agent(Player):
                 hand_eval=hand_eval,
             )
 
+            # Log the decision-making process
+            if logger:
+                await logger.log_prompt(action.prompt)
+                await logger.log_response(action.response)
+                await logger.log_parsed_action(action.parsed_action)
+
             # Validate raise amount if it's a raise action
             if action.action_type == ActionType.RAISE:
                 min_bet = get_min_bet(game)
@@ -276,7 +288,7 @@ class Agent(Player):
             AgentLogger.log_action(None, error=e)
             return ActionDecision(action_type=ActionType.CALL, reasoning="Failed to decide action")
 
-    def get_message(self, game) -> str:
+    async def get_message(self, game) -> str:
         """Generate table talk using LLM.
 
         Args:
@@ -299,6 +311,10 @@ class Agent(Player):
             response = self.llm_client.query(
                 prompt=prompt, temperature=0.5, system_message=system_message
             )
+
+            # Log the message generation process
+            await self.thought_logger.log_prompt(prompt)
+            await self.thought_logger.log_response(response)
 
             # Parse response - look for MESSAGE: prefix
             if "MESSAGE:" not in response:
@@ -374,7 +390,7 @@ class Agent(Player):
 
         return perception
 
-    def decide_discard(
+    async def decide_discard(
         self, game_state: Optional[Dict[str, Any]] = None
     ) -> DiscardDecision:
         """Decide which cards to discard."""
@@ -382,6 +398,11 @@ class Agent(Player):
             discard: DiscardDecision = LLMResponseGenerator.generate_discard(
                 self, game_state, self.hand.cards
             )
+
+            # Log the discard decision process
+            await self.thought_logger.log_prompt(discard.prompt)
+            await self.thought_logger.log_response(discard.response)
+            await self.thought_logger.log_parsed_action(discard.parsed_action)
             
             return discard
 
@@ -389,7 +410,7 @@ class Agent(Player):
             AgentLogger.log_discard_error(e)
             return DiscardDecision(discard_indices=[], reasoning="Failed to decide discard")
 
-    def update_strategy(self, game_outcome: Dict[str, Any]) -> None:
+    async def update_strategy(self, game_outcome: Dict[str, Any]) -> None:
         #! need to refactor and combine with strategy_planner (with strategy_manager)
         """Update agent's strategy based on game outcomes and performance.
 
@@ -434,7 +455,7 @@ class Agent(Player):
             )
             self.strategy_style = strategy_map[response]
 
-    def analyze_opponent(self, opponent_name: str, game_state: str) -> Dict[str, Any]:
+    async def analyze_opponent(self, opponent_name: str, game_state: str) -> Dict[str, Any]:
         #! validate and refactor this
         """Enhanced opponent analysis using historical data and LLM interpretation.
 
@@ -543,6 +564,11 @@ class Agent(Player):
                 ),  # Confidence based on sample size
             }
 
+            # Log the opponent analysis process
+            await self.thought_logger.log_prompt(prompt)
+            await self.thought_logger.log_response(response)
+            await self.thought_logger.log_opponent_analysis(analysis)
+
             return analysis
 
         except Exception as e:
@@ -554,4 +580,3 @@ class Agent(Player):
 
     def __repr__(self):
         return f"Agent(name={self.name}, strategy={self.strategy_style})"
-

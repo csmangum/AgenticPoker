@@ -93,3 +93,28 @@ class PlayerLogger:
     def log_action_error(player_name: str, action: str, error: Exception) -> None:
         """Log errors during action execution."""
         logger.error(f"Error executing {action} for {player_name}: {str(error)}")
+
+    @staticmethod
+    def log_prompt(player_name: str, prompt: str) -> None:
+        """Log the prompt sent to the LLM."""
+        logger.info(f"{player_name} prompt: {prompt}")
+
+    @staticmethod
+    def log_response(player_name: str, response: str) -> None:
+        """Log the response received from the LLM."""
+        logger.info(f"{player_name} response: {response}")
+
+    @staticmethod
+    def log_parsed_action(player_name: str, action: str) -> None:
+        """Log the parsed action from the LLM response."""
+        logger.info(f"{player_name} parsed action: {action}")
+
+    @staticmethod
+    def log_strategy(player_name: str, strategy: str) -> None:
+        """Log the strategy planning thoughts."""
+        logger.info(f"{player_name} strategy: {strategy}")
+
+    @staticmethod
+    def log_opponent_analysis(player_name: str, analysis: str) -> None:
+        """Log the opponent analysis reflections."""
+        logger.info(f"{player_name} opponent analysis: {analysis}")

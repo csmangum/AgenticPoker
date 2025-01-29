@@ -12,7 +12,7 @@ class LLMResponseGenerator:
     """
 
     @classmethod
-    def generate_plan(cls, player, game_state, hand_eval) -> "PlanResponse":
+    async def generate_plan(cls, player, game_state, hand_eval) -> "PlanResponse":
         """
         Create a plan by calling the LLM with the appropriate planning prompt.
         Returns the parsed dictionary of plan data.
@@ -22,13 +22,20 @@ class LLMResponseGenerator:
             game_state=game_state,
             hand_eval=hand_eval,
         )
-        response = player.llm_client.query(
+        response = await player.llm_client.query_async(
             prompt=prompt, temperature=0.7, max_tokens=200
         )
-        return PlanResponse.parse_llm_response(response)
+        plan_response = PlanResponse.parse_llm_response(response)
+
+        # Log the planning process
+        await player.thought_logger.log_prompt(prompt)
+        await player.thought_logger.log_response(response)
+        await player.thought_logger.log_strategy(plan_response)
+
+        return plan_response
 
     @classmethod
-    def generate_action(
+    async def generate_action(
         cls, player, game_state, current_plan: Plan, hand_eval
     ) -> "ActionDecision":
         """
@@ -50,15 +57,22 @@ class LLMResponseGenerator:
             bluff_threshold=bluff_threshold,
             fold_threshold=fold_threshold,
         )
-        response = player.llm_client.query(
+        response = await player.llm_client.query_async(
             prompt=execution_prompt,
             temperature=0.7,
             max_tokens=100,
         )
-        return ActionDecision.parse_llm_response(response)
+        action_decision = ActionDecision.parse_llm_response(response)
+
+        # Log the decision-making process
+        await player.thought_logger.log_prompt(execution_prompt)
+        await player.thought_logger.log_response(response)
+        await player.thought_logger.log_parsed_action(action_decision)
+
+        return action_decision
 
     @classmethod
-    def generate_discard(cls, player, game_state, cards) -> "DiscardDecision":
+    async def generate_discard(cls, player, game_state, cards) -> "DiscardDecision":
         """Create a discard decision by calling the LLM with the discard prompt.
 
         Args:
@@ -78,10 +92,17 @@ class LLMResponseGenerator:
             cards=cards,
         )
 
-        response = player.llm_client.query(
+        response = await player.llm_client.query_async(
             prompt=prompt,
             temperature=0.7,
             max_tokens=100,
         )
 
-        return DiscardDecision.parse_llm_response(response)
+        discard_decision = DiscardDecision.parse_llm_response(response)
+
+        # Log the discard decision process
+        await player.thought_logger.log_prompt(prompt)
+        await player.thought_logger.log_response(response)
+        await player.thought_logger.log_parsed_action(discard_decision)
+
+        return discard_decision
