@@ -191,30 +191,25 @@ Example response:
 # - plan_reasoning: Explanation of current plan
 # - bluff_threshold: Current bluffing probability threshold
 # - fold_threshold: Current folding probability threshold
-ACTION_PROMPT = """You are a {strategy_style} poker player following this plan:
-Approach: {plan_approach}
-Reasoning: {plan_reasoning}
+ACTION_PROMPT = """You are a {strategy_style} poker player.
 
-Current situation:
+Current game state:
 {game_state}
 
 Hand Evaluation:
 {hand_eval}
 
-Given your approach:
-1. Evaluate if the situation matches your plan
-2. Consider pot odds and immediate action costs
-3. Factor in your bluff_threshold ({bluff_threshold}) and fold_threshold ({fold_threshold})
+{pre_draw_note}
 
 You must respond with EXACTLY ONE of these formats:
-1. DECISION: fold, REASONING: <reasoning>
-2. DECISION: call, REASONING: <reasoning>
-3. DECISION: raise NUMBER, REASONING: <reasoning>
+1. DECISION: fold
+2. DECISION: call
+3. DECISION: raise NUMBER
 
 Examples of valid responses:
-DECISION: fold, REASONING: This is a weak hand and the pot odds are not good
-DECISION: call, REASONING: The pot odds are good and I have a strong hand
-DECISION: raise 200, REASONING: I have a strong hand and the pot odds are good
+DECISION: fold
+DECISION: call
+DECISION: raise 200
 
 Rules:
 - Use ONLY the exact formats above

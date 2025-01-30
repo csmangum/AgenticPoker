@@ -41,6 +41,14 @@ class LLMResponseGenerator:
         bluff_threshold = getattr(current_plan, "bluff_threshold", 0.5)
         fold_threshold = getattr(current_plan, "fold_threshold", 0.7)
 
+        # Determine if this is pre-draw phase from game state
+        is_pre_draw = game_state.round_state.phase == "PRE_DRAW"
+        pre_draw_note = (
+            "(Note: This is the pre-draw betting round. You will have a chance to discard and draw new cards after this betting round.)"
+            if is_pre_draw
+            else ""
+        )
+
         execution_prompt = ACTION_PROMPT.format(
             strategy_style=player.strategy_style,
             game_state=game_state,
@@ -49,6 +57,7 @@ class LLMResponseGenerator:
             plan_reasoning=plan_reasoning,
             bluff_threshold=bluff_threshold,
             fold_threshold=fold_threshold,
+            pre_draw_note=pre_draw_note,
         )
         response = player.llm_client.query(
             prompt=execution_prompt,
