@@ -137,7 +137,7 @@ def _process_betting_cycle(game: "Game") -> None:
             hand=agent.hand.show() if hasattr(agent, "hand") else "Unknown",
             chips=agent.chips,
             current_bet=agent.bet,
-            pot=game.pot.pot + sum(p.bet for p in game.table.players),
+            pot=game.pot.pot,
             active_players=[p.name for p in game.table.players if not p.folded],
             last_raiser=game.table.last_raiser.name if game.table.last_raiser else None,
         )
