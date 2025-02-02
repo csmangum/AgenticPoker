@@ -10,6 +10,7 @@ from agents.llm_client import LLMClient
 from agents.llm_response_generator import LLMResponseGenerator
 from agents.prompts import DISCARD_PROMPT
 from agents.strategy_planner import StrategyPlanner
+from agents.reasoning_module import ReasoningModule
 from config import GameConfig
 from data.memory import ChromaMemoryStore
 from data.model import Game
@@ -82,6 +83,9 @@ class Agent(Player):
         # Initialize memory store with session-specific collection name
         collection_name = f"agent_{name.lower().replace(' ', '_')}_{session_id}_memory"
         self.memory_store = ChromaMemoryStore(collection_name)
+
+        # Initialize reasoning module
+        self.reasoning_module = ReasoningModule(self.memory_store)
 
         # Keep short-term memory in lists for immediate context
         self.short_term_limit = 3
@@ -242,6 +246,7 @@ class Agent(Player):
         if self.use_planning:
             self.strategy_planner.plan_strategy(self, game, hand_eval)
 
+        # Use reasoning module for decision-making
         decided_action = self._decide_action(game, hand_eval)
 
         return decided_action
