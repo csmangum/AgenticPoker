@@ -102,3 +102,17 @@ class LLMResponseGenerator:
         )
 
         return DiscardDecision.parse_llm_response(response)
+
+    @classmethod
+    def generate_reasoning_prompt(cls, reasoning_type: str, context: str) -> str:
+        """
+        Generate a reasoning prompt based on the type of reasoning and context provided.
+        """
+        return f"{reasoning_type.capitalize()} reasoning: {context}"
+
+    @classmethod
+    def parse_reasoning_response(cls, response: str) -> str:
+        """
+        Parse the reasoning response from the LLM.
+        """
+        return response.strip()

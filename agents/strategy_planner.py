@@ -6,13 +6,13 @@ from game.evaluator import HandEvaluation
 from loggers.strategy_logger import StrategyLogger
 
 from .llm_response_generator import LLMResponseGenerator
+from .reasoning_module import ReasoningModule
 
 if TYPE_CHECKING:
     from game.game import Game
     from game.player import Player
 
 
-#! move to config
 DEFAULT_PLAN_DURATION = 30.0
 REPLAN_STACK_THRESHOLD = 100
 
@@ -31,6 +31,7 @@ class StrategyPlanner:
         REPLAN_STACK_THRESHOLD (int): Stack size change that triggers a replan
         current_plan (Optional[Plan]): The currently active strategic plan
         last_metrics (Optional[dict]): Last recorded game metrics used for planning
+        reasoning_module (ReasoningModule): The reasoning module for enhanced strategy planning
     """
 
     def __init__(
@@ -52,6 +53,7 @@ class StrategyPlanner:
         self.REPLAN_STACK_THRESHOLD = replan_threshold
         self.current_plan = None
         self.last_metrics = None
+        self.reasoning_module = ReasoningModule()
 
     def plan_strategy(
         self,
