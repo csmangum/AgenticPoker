@@ -180,6 +180,20 @@ class Table:
         """
         self.needs_to_act.discard(player)
 
+        # Record opponent actions for each agent
+        for other_player in self.players:
+            if other_player != player and hasattr(
+                other_player, "record_opponent_action"
+            ):
+                bet_amount = None
+                if action_decision.action_type == ActionType.RAISE:
+                    bet_amount = action_decision.raise_amount
+                other_player.record_opponent_action(
+                    opponent_name=player.name,
+                    action=action_decision.action_type.value,
+                    bet_amount=bet_amount,
+                )
+
         if action_decision.action_type == ActionType.RAISE:
             # Update current bet amount
             self.current_bet = action_decision.raise_amount

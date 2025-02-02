@@ -196,6 +196,15 @@ ACTION_PROMPT = """You are a {strategy_style} poker player.
 Current game state:
 {game_state}
 
+Recent game history:
+{recent_states}
+
+Recent opponent actions:
+{recent_opponent_actions}
+
+Recent hand results:
+{hand_results}
+
 Hand Evaluation:
 {hand_eval}
 

@@ -3,10 +3,9 @@ import shutil
 import tempfile
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import chromadb
-from chromadb.config import Settings
 from chromadb.errors import InvalidCollectionException
 
 from loggers.memory_logger import MemoryLogger
@@ -111,6 +110,7 @@ class ChromaMemoryStore(MemoryStore):
 
         # Sanitize collection name and ensure uniqueness
         self.safe_name = "".join(c for c in collection_name if c.isalnum() or c in "_-")
+        self.id_prefix = f"{self.safe_name}_"
         self.id_counter = 0
 
         # Initialize client with retries
@@ -181,8 +181,13 @@ class ChromaMemoryStore(MemoryStore):
             try:
                 results = self.collection.get()
                 if results and results["ids"]:
-                    max_id = max(int(id.split("_")[1]) for id in results["ids"])
-                    self.id_counter = max_id
+                    # Extract counter from IDs with our prefix
+                    our_ids = [id for id in results["ids"] if id.startswith(self.id_prefix)]
+                    if our_ids:
+                        max_id = max(int(id.split("_")[-1]) for id in our_ids)
+                        self.id_counter = max_id
+                    else:
+                        self.id_counter = 0
             except Exception as e:
                 MemoryLogger.log_max_id_error(e)
                 self.id_counter = 0
@@ -192,100 +197,127 @@ class ChromaMemoryStore(MemoryStore):
             raise
 
     def add_memory(self, text: str, metadata: Dict[str, Any]) -> None:
-        """Store a new memory in Chroma with improved error handling."""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                if not self.collection:
-                    self._initialize_client()
+        """Store a new memory with associated metadata.
 
-                # Add unique timestamp to metadata
-                metadata = {**metadata, "timestamp": time.time()}
+        Metadata should include:
+        - memory_type: "game_action" | "opponent_action" | "game_state" | "hand_result"
+        - timestamp: float
+        - round_id: str  (to group memories within a game round)
+        - hand_id: str   (to group memories within a single hand)
+        - chips_delta: Optional[int]  (for tracking chip changes)
+        - position: Optional[str]  (player's position in the hand)
+        - opponent_name: Optional[str]  (for opponent-related memories)
+        """
+        try:
+            # Add unique timestamp to metadata if not present
+            if "timestamp" not in metadata:
+                metadata["timestamp"] = time.time()
 
-                self.id_counter += 1
-                mem_id = f"mem_{self.id_counter}"
+            # Ensure required fields
+            if "memory_type" not in metadata:
+                metadata["memory_type"] = "general"
 
-                # Add with retries
-                retry_count = 0
-                while retry_count < 3:
-                    try:
-                        self.collection.add(
-                            documents=[text], metadatas=[metadata], ids=[mem_id]
-                        )
-                        time.sleep(0.1)  # Small delay to ensure processing
-                        break
-                    except Exception as e:
-                        retry_count += 1
-                        if retry_count == 3:
-                            raise
-                        time.sleep(0.2)
-                break
+            self.id_counter += 1
+            MemoryLogger.log_info(
+                f"Adding memory {self.id_prefix}{self.id_counter}: type={metadata['memory_type']}, text={text[:50]}..."
+            )
 
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    MemoryLogger.log_memory_add_error(e, max_retries)
-                    raise
-                time.sleep(0.5)
+            # Add with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.collection.add(
+                        documents=[text],
+                        metadatas=[metadata],
+                        ids=[f"{self.id_prefix}{self.id_counter}"],
+                    )
+                    MemoryLogger.log_info(f"Successfully added memory {self.id_prefix}{self.id_counter}")
+                    break
+                except Exception as e:
+                    MemoryLogger.log_error(f"Error adding memory {self.id_prefix}{self.id_counter}: {str(e)}")
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(0.2)
+
+        except Exception as e:
+            MemoryLogger.log_error(f"Failed to add memory: {str(e)}")
+            raise
 
     def get_relevant_memories(
-        self, query: Union[str, Dict], k: int = 2
+        self,
+        query: str,
+        k: int = 3,
+        memory_type: Optional[str] = None,
+        time_window: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
-        """Get relevant memories based on query."""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                if self.collection is None:
-                    MemoryLogger.log_collection_reinit()
-                    self._initialize_client()
+        """Get relevant memories with optional filtering.
 
-                # Handle dictionary queries by converting to string
-                if isinstance(query, dict):
-                    query = str(query)  # Convert dict to string representation
+        Args:
+            query: Search query text
+            k: Number of memories to return
+            memory_type: Optional filter for specific memory types
+            time_window: Optional time window in seconds to limit search
+        """
+        try:
+            MemoryLogger.log_info(
+                f"Querying memories: type={memory_type}, query='{query}', k={k}"
+            )
 
-                # Get total count of memories
-                total_memories = len(self.collection.get()["ids"])
+            # Build where clause with proper operator structure
+            where = None
+            if memory_type and time_window:
+                cutoff = time.time() - time_window
+                where = {
+                    "$and": [
+                        {"memory_type": memory_type},
+                        {"timestamp": {"$gt": cutoff}},
+                    ]
+                }
+            elif memory_type:
+                where = {"memory_type": memory_type}
+            elif time_window:
+                cutoff = time.time() - time_window
+                where = {"timestamp": {"$gt": cutoff}}
 
-                # Adjust k if it exceeds available memories
-                k = min(k, total_memories)
+            MemoryLogger.log_info(f"Using where clause: {where}")
 
-                if k == 0:
-                    return []
+            # Get total count of memories first
+            total_memories = len(self.collection.get()["ids"])
+            MemoryLogger.log_info(f"Total memories in collection: {total_memories}")
 
-                # Query with adjusted k
-                results = self.collection.query(
-                    query_texts=[query],
-                    n_results=k,
-                    include=["documents", "metadatas"],  # Explicitly request all data
+            # Adjust k if it exceeds available memories
+            k = min(k, total_memories) if total_memories > 0 else k
+
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=k,
+                where=where if where is not None else None,
+                include=["documents", "metadatas"],
+            )
+
+            # Check if we got valid results
+            if not results or not results["ids"][0]:
+                MemoryLogger.log_warning(f"No results found for query: {query}")
+                return []
+
+            MemoryLogger.log_info(
+                f"Found {len(results['ids'][0])} memories matching query"
+            )
+
+            memories = []
+            for i in range(len(results["ids"][0])):
+                memories.append(
+                    {
+                        "text": results["documents"][0][i],
+                        "metadata": results["metadatas"][0][i],
+                    }
                 )
 
-                # Check if we got valid results
-                if not results or not results["ids"][0]:
-                    MemoryLogger.log_query_warning(query)
-                    return []
+            return memories
 
-                memories = []
-                for i in range(len(results["ids"][0])):
-                    memories.append(
-                        {
-                            "text": results["documents"][0][i],
-                            "metadata": results["metadatas"][0][i],
-                        }
-                    )
-
-                return memories
-
-            except (InvalidCollectionException, AttributeError) as e:
-                MemoryLogger.log_collection_error(e, attempt)
-                if attempt < max_retries - 1:
-                    self._initialize_client()
-                    time.sleep(0.2)  # Give time for initialization
-                else:
-                    MemoryLogger.log_collection_recovery_error()
-                    return []
-
-            except Exception as e:
-                MemoryLogger.log_memory_retrieval_error(e)
-                return []
+        except Exception as e:
+            MemoryLogger.log_error(f"Error retrieving memories: {str(e)}")
+            return []
 
     def clear(self) -> None:
         """Clear all memories from the collection."""
@@ -319,3 +351,11 @@ class ChromaMemoryStore(MemoryStore):
             MemoryLogger.log_connection_close(self.safe_name)
         except Exception as e:
             MemoryLogger.log_close_error(e)
+
+
+# Example usage
+if __name__ == "__main__":
+    memory_store = ChromaMemoryStore("test_collection")
+    memory_store.add_memory("This is a test memory", {"source": "test"})
+    memories = memory_store.get_relevant_memories("test")
+    print(memories)

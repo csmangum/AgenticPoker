@@ -98,3 +98,18 @@ class MemoryLogger:
         """Log client-related warnings."""
         if "Python is likely shutting down" not in str(error):
             logger.warning(f"Error closing client: {error}")
+
+    @staticmethod
+    def log_info(message: str) -> None:
+        """Log an informational message."""
+        logger.info(f"[Memory] {message}")
+
+    @staticmethod
+    def log_warning(message: str) -> None:
+        """Log a warning message."""
+        logger.warning(f"[Memory] {message}")
+
+    @staticmethod
+    def log_error(message: str) -> None:
+        """Log an error message."""
+        logger.error(f"[Memory] {message}")

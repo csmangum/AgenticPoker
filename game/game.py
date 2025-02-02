@@ -1,8 +1,13 @@
 from typing import Dict, List, Optional
+import os
+import shutil
+import time
 
 from data.db_client import DatabaseClient
+from data.enums import ActionType
 from data.states.game_state import GameState
 from data.states.round_state import RoundState
+from data.types.action_decision import ActionDecision
 from game.config import GameConfig
 from game.table import Table
 from loggers.game_logger import GameLogger
@@ -88,6 +93,9 @@ class AgenticPoker:
         if not players:
             raise ValueError("Must provide at least 2 players")
 
+        # Clean up any existing ChromaDB databases in results directory
+        self._cleanup_chroma_dbs()
+
         # Support both direct parameter initialization and GameConfig
         if config:
             self.config = config
@@ -134,6 +142,27 @@ class AgenticPoker:
 
         # Initialize database client
         self.db_client = DatabaseClient()
+
+    def _cleanup_chroma_dbs(self) -> None:
+        """Clean up any existing ChromaDB databases in the results directory."""
+        results_dir = os.path.join(os.getcwd(), "results")
+        chroma_dir = os.path.join(results_dir, "chroma_db")
+        
+        if os.path.exists(chroma_dir):
+            try:
+                shutil.rmtree(chroma_dir)
+                time.sleep(0.2)  # Give OS time to release handles
+                GameLogger.log_info("Cleared previous ChromaDB databases")
+            except PermissionError:
+                # Wait a bit longer and try again
+                time.sleep(1.0)
+                try:
+                    shutil.rmtree(chroma_dir)
+                    GameLogger.log_info("Cleared previous ChromaDB databases after retry")
+                except PermissionError:
+                    GameLogger.log_info(
+                        "Could not clear ChromaDB directory - will create new collections"
+                    )
 
     def play_game(self, max_rounds: Optional[int] = None) -> None:
         """
@@ -214,7 +243,12 @@ class AgenticPoker:
     def _handle_pre_draw_phase(self) -> bool:
         GameLogger.log_phase_header("Pre-draw betting")
 
-        # Handle betting round first
+        # Record pre-draw state for agents
+        for player in self.table:
+            if hasattr(player, "record_game_state"):
+                player.current_round_id = f"round_{self.round_number}_predraw"
+                player.record_game_state(self)
+
         should_continue = betting.handle_betting_round(self)
 
         # Calculate side pots if any player is all-in
@@ -229,6 +263,13 @@ class AgenticPoker:
 
     def _handle_draw_phase(self) -> bool:
         GameLogger.log_phase_header("Draw Phase")
+
+        # Record draw phase state for agents
+        for player in self.table:
+            if hasattr(player, "record_game_state"):
+                player.current_round_id = f"round_{self.round_number}_draw"
+                player.record_game_state(self)
+
         should_continue = draw.handle_draw_phase(self)
         GameLogger.log_phase_complete("Draw Phase")
         return should_continue
@@ -242,6 +283,12 @@ class AgenticPoker:
         3. End betting round which moves bets to pot
         """
         GameLogger.log_phase_header("Post-draw betting")
+
+        # Record post-draw state for agents
+        for player in self.table:
+            if hasattr(player, "record_game_state"):
+                player.current_round_id = f"round_{self.round_number}_postdraw"
+                player.record_game_state(self)
 
         # Skip post-draw betting if everyone is all-in
         if all(p.is_all_in or p.folded for p in self.table.players):
@@ -263,6 +310,29 @@ class AgenticPoker:
 
     def _handle_showdown(self) -> None:
         GameLogger.log_phase_header("Showdown")
+
+        # Record showdown results for agents
+        for player in self.table:
+            if hasattr(player, "record_hand_result"):
+                # Determine if player won and their profit/loss
+                winners = showdown._evaluate_hands(
+                    [p for p in self.table.players if not p.folded]
+                )
+                won = player in winners
+                chips_delta = player.chips - self.initial_chips.get(player, 0)
+
+                # Get opponent cards if they showed down
+                opponent_cards = {}
+                for opp in self.table:
+                    if opp != player and not opp.folded:
+                        opponent_cards[opp.name] = str(opp.hand)
+
+                player.record_hand_result(
+                    won=won,
+                    amount=chips_delta,
+                    opponent_cards=str(opponent_cards) if opponent_cards else "",
+                )
+
         showdown.handle_showdown(
             players=self.table.players,
             initial_chips=self.initial_chips,
@@ -300,10 +370,15 @@ class AgenticPoker:
                 self.table.remove_player(player)
 
         self._initialize_round()
-
         self._log_round_info()
 
-        # Collect blinds and antes AFTER logging initial state
+        # Record new round state for each agent
+        for player in self.table:
+            if hasattr(player, "record_game_state"):
+                player.current_hand_id = f"hand_{self.round_number}"
+                player.current_round_id = f"round_{self.round_number}"
+                player.record_game_state(self)
+
         self._collect_blinds_and_antes()
 
         # Add this check: If all players except one are all-in after blinds/antes,
@@ -357,6 +432,26 @@ class AgenticPoker:
 
         # Update pot directly with collected amount
         self.pot.pot = collected
+
+        # Record blind/ante actions for agents
+        for player in self.table:
+            if hasattr(player, "record_action"):
+                if player.bet == self.small_blind:
+                    player.record_action(
+                        ActionDecision(
+                            action_type=ActionType.SMALL_BLIND,
+                            raise_amount=self.small_blind,
+                        ),
+                        self,
+                    )
+                elif player.bet == self.big_blind:
+                    player.record_action(
+                        ActionDecision(
+                            action_type=ActionType.BIG_BLIND,
+                            raise_amount=self.big_blind,
+                        ),
+                        self,
+                    )
 
     def _log_round_info(self) -> None:
         """Log complete round state including stacks, positions, and betting information."""
