@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 
 from agents.llm_client import LLMClient
 from agents.llm_response_generator import LLMResponseGenerator
+from agents.memory import ChromaMemoryStore
 from agents.prompts import DISCARD_PROMPT
 from agents.strategy_planner import StrategyPlanner
 from config import GameConfig
-from data.memory import ChromaMemoryStore
 from data.model import Game
 from data.types.action_decision import ActionDecision, ActionType
 from data.types.discard_decision import DiscardDecision
@@ -120,6 +120,17 @@ class Agent(Player):
                 "position_value": 0.4,
             }
             self.action_values = {"fold": 0.0, "call": 0.0, "raise": 0.0}
+
+        # Initialize session tracking
+        self.current_hand_id = None
+        self.current_round_id = None
+        self.session_start_time = time.time()
+
+        # Track important game events
+        self.last_action = None
+        self.last_position = None
+        self.starting_chips = chips
+        self.chip_history = []
 
     def close(self):
         """Clean up external resources explicitly.
@@ -561,3 +572,76 @@ class Agent(Player):
 
     def __repr__(self):
         return f"Agent(name={self.name}, strategy={self.strategy_style})"
+
+    def record_game_state(self, game: "Game") -> None:
+        """Record current game state in memory."""
+        # Convert GameState to a string representation
+        game_state = game.get_state()
+        state_text = (
+            f"Round {game_state.round_state.round_number} - "
+            f"Phase: {game_state.round_state.phase}, "
+            f"Players: {len(game_state.players)}, "
+            f"Pot: ${game_state.pot_state.total_pot}, "
+            f"Current bet: ${game_state.round_state.current_bet}"
+        )
+
+        self.memory_store.add_memory(
+            text=state_text,
+            metadata={
+                "memory_type": "game_state",
+                "hand_id": self.current_hand_id,
+                "round_id": self.current_round_id,
+                "position": self.position,
+                "chips": self.chips,
+                "pot_size": game.pot.pot,
+            },
+        )
+
+    def record_action(self, action: ActionDecision, game: "Game") -> None:
+        """Record an action taken by the agent."""
+        self.memory_store.add_memory(
+            text=str(action),
+            metadata={
+                "memory_type": "game_action",
+                "hand_id": self.current_hand_id,
+                "round_id": self.current_round_id,
+                "action_type": action.action_type.value,
+                "chips_delta": (
+                    -action.raise_amount if hasattr(action, "raise_amount") else 0
+                ),
+                "position": self.position,
+            },
+        )
+
+    def record_opponent_action(
+        self, opponent_name: str, action: str, bet_amount: Optional[int] = None
+    ) -> None:
+        """Record an opponent's action."""
+        self.memory_store.add_memory(
+            text=f"{opponent_name}: {action}"
+            + (f" ${bet_amount}" if bet_amount else ""),
+            metadata={
+                "memory_type": "opponent_action",
+                "hand_id": self.current_hand_id,
+                "round_id": self.current_round_id,
+                "opponent_name": opponent_name,
+                "action": action,
+                "bet_amount": bet_amount if bet_amount is not None else 0,  # Default to 0 instead of None
+            },
+        )
+
+    def record_hand_result(
+        self, won: bool, amount: int, opponent_cards: Optional[str] = None
+    ) -> None:
+        """Record the result of a completed hand."""
+        self.memory_store.add_memory(
+            text=f"Hand result: {'Won' if won else 'Lost'} ${amount}"
+            + (f" | Opponent showed: {opponent_cards}" if opponent_cards else ""),
+            metadata={
+                "memory_type": "hand_result",
+                "hand_id": self.current_hand_id,
+                "won": won,
+                "chips_delta": amount,
+                "opponent_cards": str(opponent_cards) if opponent_cards else "",  # Convert to empty string instead of None
+            },
+        )

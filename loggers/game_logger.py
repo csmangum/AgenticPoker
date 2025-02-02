@@ -145,3 +145,18 @@ class GameLogger:
             reason (str): The reason why betting was skipped
         """
         logger.info(f"Skipping betting round: {reason}")
+
+    @staticmethod
+    def log_info(message: str) -> None:
+        """Log an informational message."""
+        logger.info(message)
+
+    @staticmethod
+    def log_warning(message: str) -> None:
+        """Log a warning message."""
+        logger.warning(message)
+
+    @staticmethod
+    def log_error(message: str) -> None:
+        """Log an error message."""
+        logger.error(message)

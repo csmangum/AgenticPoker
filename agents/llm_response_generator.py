@@ -55,6 +55,29 @@ class LLMResponseGenerator:
             else ""
         )
 
+        # Get relevant memories for decision making
+        recent_states = player.memory_store.get_relevant_memories(
+            query=f"Phase: {game.round_state.phase}",
+            k=3,
+            memory_type="game_state",
+            time_window=300,
+        )
+
+        recent_opponent_actions = player.memory_store.get_relevant_memories(
+            query="raise",
+            k=5,
+            memory_type="opponent_action",
+            time_window=300,
+        )
+
+        hand_results = player.memory_store.get_relevant_memories(
+            query="Won",
+            k=3,
+            memory_type="hand_result",
+            time_window=1800,
+        )
+
+        # Update the action prompt with memory context
         execution_prompt = ACTION_PROMPT.format(
             strategy_style=player.strategy_style,
             game_state=game.get_state(),
@@ -66,7 +89,10 @@ class LLMResponseGenerator:
             pre_draw_note=pre_draw_note,
             min_raise=min_raise,
             max_raise=max_raise,
-            current_bet=current_bet
+            current_bet=current_bet,
+            recent_states=recent_states,
+            recent_opponent_actions=recent_opponent_actions,
+            hand_results=hand_results,
         )
         response = player.llm_client.query(
             prompt=execution_prompt,
